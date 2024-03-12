@@ -25,6 +25,7 @@
 #include "RT_Screen.h"
 #include "TimeRecord.h"
 #include "Tool.h"
+#include "Sphere.h"
 
 #define MAX_LIGHTS 3
 #define KEY_COUNT 349
@@ -42,6 +43,7 @@ shared_ptr<Light> light;
 shared_ptr<RT_Screen> screen;
 shared_ptr<RenderBuffer> screenBuffer;
 shared_ptr<timeRecord> tRecord;
+shared_ptr<Sphere> sphere;
 
 bool keyToggles[KEY_COUNT] = {false}; // only for English keyboards!
 char uniformName[50];
@@ -66,8 +68,17 @@ int sppIndex;
 int sppNum;
 vector<shared_ptr<int>> spps;
 
+int sphereIndex;
+int sphereNum;
+vector<shared_ptr<Sphere>> spheres;
+
 unsigned int SCR_WIDTH = 1200;
 unsigned int SCR_HEIGHT = 800;
+
+bool temporalDenoiser = false;
+bool spatialDenoiser = false;
+
+float globalLight;
 
 // This function is called when a GLFW error occurs
 static void error_callback(int error, const char *description)
@@ -116,6 +127,15 @@ static void init()
 	prog->setVerbose(true);
 	prog->init();
 	prog->addUniform("historyTexture");
+	prog->addUniform("historyDepthTexture");
+	prog->addUniform("historyNormalTexture");
+	prog->addUniform("historyCountTexture");
+	prog->addUniform("historyluminance1Texture");
+	prog->addUniform("historyluminance2Texture");
+	prog->addUniform("temporalDenoiser");
+	prog->addUniform("spatialDenoiser");
+	prog->addUniform("sphereNum");
+	prog->addUniform("globalLight");
 	GLSL::checkError(GET_FILE_LINE);
 	//camera
 	prog->addUniform("camera.camPos");
@@ -130,35 +150,21 @@ static void init()
 	prog->addUniform("randOrigin");
 
 	//sphere
-	prog->addUniform("sphere[0].radius");
-	prog->addUniform("sphere[0].center");
-	prog->addUniform("sphere[0].materialIndex");
-	prog->addUniform("sphere[0].albedo");
+	sphereNum = 8;
+	for (int i = 0; i < sphereNum; ++i) {
+		sprintf(uniformName, "sphere[%d].radius", i);
+		prog->addUniform(string(uniformName));
 
-	prog->addUniform("sphere[1].radius");
-	prog->addUniform("sphere[1].center");
-	prog->addUniform("sphere[1].materialIndex");
-	prog->addUniform("sphere[1].albedo");
+		sprintf(uniformName, "sphere[%d].center", i);
+		prog->addUniform(string(uniformName));
 
-	prog->addUniform("sphere[2].radius");
-	prog->addUniform("sphere[2].center");
-	prog->addUniform("sphere[2].materialIndex");
-	prog->addUniform("sphere[2].albedo");
+		sprintf(uniformName, "sphere[%d].materialIndex", i);
+		prog->addUniform(string(uniformName));
 
-	prog->addUniform("sphere[3].radius");
-	prog->addUniform("sphere[3].center");
-	prog->addUniform("sphere[3].materialIndex");
-	prog->addUniform("sphere[3].albedo");
+		sprintf(uniformName, "sphere[%d].albedo", i);
+		prog->addUniform(string(uniformName));
+	}
 
-	prog->addUniform("sphere[4].radius");
-	prog->addUniform("sphere[4].center");
-	prog->addUniform("sphere[4].materialIndex");
-	prog->addUniform("sphere[4].albedo");
-
-	prog->addUniform("sphere[5].radius");
-	prog->addUniform("sphere[5].center");
-	prog->addUniform("sphere[5].materialIndex");
-	prog->addUniform("sphere[5].albedo");
 
 	prog->addUniform("spp");
 	prog->setVerbose(false);
@@ -167,7 +173,12 @@ static void init()
 	prog->setShaderNames(RESOURCE_DIR + "ScreenVertexShader.glsl", RESOURCE_DIR + "ScreenFragmentShader.glsl");
 	prog->setVerbose(true);
 	prog->init();
-	prog->addUniform("historyTexture");
+	prog->addUniform("spatialDenoiser");
+	prog->addUniform("screenTexture");
+	prog->addUniform("historyluminance1Texture");
+	prog->addUniform("historyluminance2Texture");
+	prog->addUniform("texelWidth");
+	prog->addUniform("texelHeight");
 	prog->setVerbose(false);
 	// Initial materials
 	materialIndex = 0;
@@ -220,6 +231,60 @@ static void init()
 	shape->loadMesh(RESOURCE_DIR + "teapot.obj");
 	shape->init();*/
 
+	// Initial sphere
+	sphereIndex = 0;
+	for (int i = 0; i < sphereNum; ++i) {
+		spheres.push_back(make_shared<Sphere>());
+	}
+
+	sphere = spheres[0];
+	sphere->center = glm::vec3(0.0, -100.5, -1.0);
+	sphere->radius = 100.0;
+	sphere->materialIndex = 1;
+	sphere->albedo = glm::vec3(0.5, 0.5, 0.5);
+
+	sphere = spheres[1];
+	sphere->center = glm::vec3(1.0, 0.0, -1.0);
+	sphere->radius = 0.5;
+	sphere->materialIndex = 3;
+	sphere->albedo = glm::vec3(0.2, 0.7, 0.6);
+
+	sphere = spheres[2];
+	sphere->center = glm::vec3(-1.0, 0.0, -1.0);
+	sphere->radius = 0.5;
+	sphere->materialIndex = 2;
+	sphere->albedo = glm::vec3(0.1, 0.3, 0.7);
+
+	sphere = spheres[3];
+	sphere->center = glm::vec3(-2.0, 0.0, -1.0);
+	sphere->radius = 0.5;
+	sphere->materialIndex = 1;
+	sphere->albedo = glm::vec3(0.1, 0.8, 0.3);
+
+	sphere = spheres[4];
+	sphere->center = glm::vec3(0.0, 1.0, -5.0);
+	sphere->radius = 2;
+	sphere->materialIndex = 3;
+	sphere->albedo = glm::vec3(1.0, 1.0, 1.0);
+
+	sphere = spheres[5];
+	sphere->center = glm::vec3(0.0, 0.0, -1.0);
+	sphere->radius = 0.5;
+	sphere->materialIndex = 3;
+	sphere->albedo = glm::vec3(1.0, 1.0, 1.0);
+
+	sphere = spheres[6];
+	sphere->center = glm::vec3(0.0, 3.0, 0.0);
+	sphere->radius = 1.0;
+	sphere->materialIndex = 0;
+	sphere->albedo = glm::vec3(1.0, 1.0, 1.0);
+
+	sphere = spheres[7];
+	sphere->center = glm::vec3(3.0, 3.0, 0.0);
+	sphere->radius = 1.0;
+	sphere->materialIndex = 0;
+	sphere->albedo = glm::vec3(1.0, 1.0, 1.0);
+
 	// Initial spp
 	sppNum = 5;
 	spps.push_back(make_shared<int>(1));
@@ -243,6 +308,8 @@ static void init()
 
 	tRecord = make_shared<timeRecord>();
 
+	globalLight = 1.0;
+
 	GLSL::checkError(GET_FILE_LINE);
 }
 
@@ -263,6 +330,15 @@ static void render()
 	prog = programs[0];
 	prog->bind();
 	glUniform1i(prog->getUniform("historyTexture"), 0);
+	glUniform1i(prog->getUniform("historyDepthTexture"), 1);
+	glUniform1i(prog->getUniform("historyNormalTexture"), 2);
+	glUniform1i(prog->getUniform("historyCountTexture"), 3);
+	glUniform1i(prog->getUniform("historyluminance1Texture"), 4);
+	glUniform1i(prog->getUniform("historyluminance2Texture"), 5);
+	glUniform1i(prog->getUniform("temporalDenoiser"), temporalDenoiser);
+	glUniform1i(prog->getUniform("spatialDenoiser"), spatialDenoiser);
+	glUniform1i(prog->getUniform("sphereNum"), sphereNum);
+	glUniform1f(prog->getUniform("globalLight"), globalLight);
 	//camera
 	glUniform3fv(prog->getUniform("camera.camPos"), 1, &camera->cameraPos[0]);
 	glUniform3fv(prog->getUniform("camera.front"), 1, &camera->cameraFront[0]);
@@ -278,52 +354,25 @@ static void render()
 	glUniform1i(prog->getUniform("spp"), *spps[sppIndex]);
 
 	//sphere
-	glm::vec3 center;
-	glm::vec3 albedo;
-	glUniform1f(prog->getUniform("sphere[0].radius"), 0.5);
-	center = glm::vec3(0.0, 0.0, -1.0);
-	glUniform3fv(prog->getUniform("sphere[0].center"), 1, &center[0]);
-	glUniform1i(prog->getUniform("sphere[0].materialIndex"), 2);
-	albedo = glm::vec3(1.0, 1.0, 1.0);
-	glUniform3fv(prog->getUniform("sphere[0].albedo"), 1, &albedo[0]);
+	for (int i = 0; i < sphereNum; ++i) {
+		sprintf(uniformName, "sphere[%d].radius", i);
+		glUniform1f(prog->getUniform(uniformName), spheres[i]->radius);
 
-	glUniform1f(prog->getUniform("sphere[1].radius"), 0.5);
-	center = glm::vec3(1.0, 0.0, -1.0);
-	glUniform3fv(prog->getUniform("sphere[1].center"), 1, &center[0]);
-	glUniform1i(prog->getUniform("sphere[1].materialIndex"), 2);
-	albedo = glm::vec3(0.2, 0.7, 0.6);
-	glUniform3fv(prog->getUniform("sphere[1].albedo"), 1, &albedo[0]);
+		sprintf(uniformName, "sphere[%d].center", i);
+		glUniform3fv(prog->getUniform(uniformName), 1, &spheres[i]->center[0]);
 
-	glUniform1f(prog->getUniform("sphere[2].radius"), 0.5);
-	center = glm::vec3(-1.0, 0.0, -1.0);
-	glUniform3fv(prog->getUniform("sphere[2].center"), 1, &center[0]);
-	glUniform1i(prog->getUniform("sphere[2].materialIndex"), 1);
-	albedo = glm::vec3(0.1, 0.3, 0.7);
-	glUniform3fv(prog->getUniform("sphere[2].albedo"), 1, &albedo[0]);
+		sprintf(uniformName, "sphere[%d].materialIndex", i);
+		glUniform1i(prog->getUniform(uniformName), spheres[i]->materialIndex);
 
-	glUniform1f(prog->getUniform("sphere[3].radius"), 0.5);
-	center = glm::vec3(-2.0, 0.0, -1.0);
-	glUniform3fv(prog->getUniform("sphere[3].center"), 1, &center[0]);
-	glUniform1i(prog->getUniform("sphere[3].materialIndex"), 0);
-	albedo = glm::vec3(0.1, 0.8, 0.3);
-	glUniform3fv(prog->getUniform("sphere[3].albedo"), 1, &albedo[0]);
-
-	glUniform1f(prog->getUniform("sphere[4].radius"), 2);
-	center = glm::vec3(0.0, 1.0, -5.0);
-	glUniform3fv(prog->getUniform("sphere[4].center"), 1, &center[0]);
-	glUniform1i(prog->getUniform("sphere[4].materialIndex"), 2);
-	albedo = glm::vec3(1.0, 1.0, 1.0);
-	glUniform3fv(prog->getUniform("sphere[4].albedo"), 1, &albedo[0]);
-
-	glUniform1f(prog->getUniform("sphere[5].radius"), 100.0);
-	center = glm::vec3(0.0, -100.5, -1.0);
-	glUniform3fv(prog->getUniform("sphere[5].center"), 1, &center[0]);
-	glUniform1i(prog->getUniform("sphere[5].materialIndex"), 0);
-	albedo = glm::vec3(0.9, 0.9, 0.9);
-	glUniform3fv(prog->getUniform("sphere[5].albedo"), 1, &albedo[0]);
+		sprintf(uniformName, "sphere[%d].albedo", i);
+		glUniform3fv(prog->getUniform(uniformName), 1, &spheres[i]->albedo[0]);
+	}
 
 	screen->DrawScreen();
 	prog->unbind();
+
+	int width, height;
+	glfwGetFramebufferSize(window, &width, &height);
 
 	prog = programs[1];
 	// 绑定到默认缓冲区
@@ -335,7 +384,12 @@ static void render()
 	prog->bind();
 	screenBuffer->setCurrentAsTexture(camera->LoopNum);
 	// screenBuffer绑定的纹理被定义为纹理0，所以这里设置片段着色器中的screenTexture为纹理0
+	glUniform1i(prog->getUniform("spatialDenoiser"), spatialDenoiser);
 	glUniform1i(prog->getUniform("screenTexture"), 0);
+	glUniform1i(prog->getUniform("historyluminance1Texture"), 4);
+	glUniform1i(prog->getUniform("historyluminance2Texture"), 5);
+	glUniform1f(prog->getUniform("texelWidth"), 1.0f / width);
+	glUniform1f(prog->getUniform("texelHeight"), 1.0f / height);
 
 	// 绘制屏幕
 	screen->DrawScreen();
@@ -423,6 +477,13 @@ int main(int argc, char **argv)
 }
 
 // 按键处理
+// WSAD move camera
+// XYZ shift move object
+// <> chose object
+// up chose spp
+// O enable/disable temporal denoiser
+// p enable/disable spatial denoiser
+// + increase global light
 void processInput(GLFWwindow* window) {
 	if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
 		glfwSetWindowShouldClose(window, true);
@@ -435,15 +496,108 @@ void processInput(GLFWwindow* window) {
 		camera->ProcessKeyboard(LEFT, tRecord->deltaTime);
 	if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
 		camera->ProcessKeyboard(RIGHT, tRecord->deltaTime);
+	if (glfwGetKey(window, GLFW_KEY_X) == GLFW_PRESS) {
+		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
+			spheres[sphereIndex]->ProcessKeyboard(x, tRecord->deltaTime);
+		}
+		else {
+			spheres[sphereIndex]->ProcessKeyboard(X, tRecord->deltaTime);
+		}
+	}
+	if (glfwGetKey(window, GLFW_KEY_Y) == GLFW_PRESS) {
+		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
+			spheres[sphereIndex]->ProcessKeyboard(y, tRecord->deltaTime);
+		}
+		else {
+			spheres[sphereIndex]->ProcessKeyboard(Y, tRecord->deltaTime);
+		}
+	}
+	if (glfwGetKey(window, GLFW_KEY_Z) == GLFW_PRESS) {
+		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
+			spheres[sphereIndex]->ProcessKeyboard(z, tRecord->deltaTime);
+		}
+		else {
+			spheres[sphereIndex]->ProcessKeyboard(Z, tRecord->deltaTime);
+		}
+	}
+	if (glfwGetKey(window, GLFW_KEY_EQUAL) == GLFW_PRESS) {
+		if (glfwGetKey(window, GLFW_KEY_LEFT_SHIFT) == GLFW_PRESS || glfwGetKey(window, GLFW_KEY_RIGHT_SHIFT) == GLFW_PRESS) {
+			globalLight -= 0.01;
+			if (globalLight < 0) {
+				globalLight = 0;
+			}
+		}
+		else {
+			globalLight += 0.01;
+			if (globalLight > 1) {
+				globalLight = 1;
+			}
+		}
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_PERIOD) == GLFW_PRESS) {
+		if (!keyToggles[GLFW_KEY_PERIOD]) {
+			keyToggles[GLFW_KEY_PERIOD] = true;
+			sphereIndex = (sphereIndex + 1) % sphereNum;
+			cout << "sphere: " << sphereIndex << endl;
+		}
+	}
+	else {
+		keyToggles[GLFW_KEY_PERIOD] = false;
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_COMMA) == GLFW_PRESS) {
+		if (!keyToggles[GLFW_KEY_COMMA]) {
+			keyToggles[GLFW_KEY_COMMA] = true;
+			sphereIndex = (sphereIndex + sphereNum - 1) % sphereNum;
+			cout << "sphere: " << sphereIndex << endl;
+		}
+	}
+	else {
+		keyToggles[GLFW_KEY_COMMA] = false;
+	}
+
 	if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {
 		if (!keyToggles[GLFW_KEY_UP]) {
 			keyToggles[GLFW_KEY_UP] = true;
 			sppIndex = (sppIndex + 1) % sppNum;
-			cout << *spps[sppIndex] << endl;
+			cout << "ssp: " << *spps[sppIndex] << endl;
 		}
 	}
 	else {
 		keyToggles[GLFW_KEY_UP] = false;
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_O) == GLFW_PRESS) {
+		if (!keyToggles[GLFW_KEY_O]) {
+			keyToggles[GLFW_KEY_O] = true;
+			temporalDenoiser = 1 - temporalDenoiser;
+			if (temporalDenoiser) {
+				cout << "Enable temporalDenoiser" << endl;
+			}
+			else {
+				cout << "Disable temporalDenoiser" << endl;
+			}
+		}
+	}
+	else {
+		keyToggles[GLFW_KEY_O] = false;
+	}
+
+	if (glfwGetKey(window, GLFW_KEY_P) == GLFW_PRESS) {
+		if (!keyToggles[GLFW_KEY_P]) {
+			keyToggles[GLFW_KEY_P] = true;
+			spatialDenoiser = 1 - spatialDenoiser;
+			if (spatialDenoiser) {
+				cout << "Enable spatialDenoiser" << endl;
+			}
+			else {
+				cout << "Disable spatialDenoiser" << endl;
+			}
+		}
+	}
+	else {
+		keyToggles[GLFW_KEY_P] = false;
 	}
 }
 

@@ -65,8 +65,64 @@ public:
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
-
 		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, textureColorbuffer, 0);
+
+		// 绑定深度纹理
+		glGenTextures(1, &textureDepthbuffer);
+		glBindTexture(GL_TEXTURE_2D, textureDepthbuffer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT1, GL_TEXTURE_2D, textureDepthbuffer, 0);
+
+		// 绑定法线纹理
+		glGenTextures(1, &textureNormalbuffer);
+		glBindTexture(GL_TEXTURE_2D, textureNormalbuffer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_FLOAT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT2, GL_TEXTURE_2D, textureNormalbuffer, 0);
+
+		// 绑定计数纹理
+		glGenTextures(1, &textureCountbuffer);
+		glBindTexture(GL_TEXTURE_2D, textureCountbuffer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32I, SCR_WIDTH, SCR_HEIGHT, 0, GL_RED_INTEGER, GL_INT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT3, GL_TEXTURE_2D, textureCountbuffer, 0);
+
+		// 绑定亮度一阶矩纹理
+		glGenTextures(1, &textureluminance1buffer);
+		glBindTexture(GL_TEXTURE_2D, textureluminance1buffer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT4, GL_TEXTURE_2D, textureluminance1buffer, 0);
+
+		// 绑定亮度二阶矩纹理
+		glGenTextures(1, &textureluminance2buffer);
+		glBindTexture(GL_TEXTURE_2D, textureluminance2buffer);
+		glTexImage2D(GL_TEXTURE_2D, 0, GL_R32F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RED, GL_FLOAT, NULL);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT5, GL_TEXTURE_2D, textureluminance2buffer, 0);
+
+		attachments[0] = GL_COLOR_ATTACHMENT0;
+		attachments[1] = GL_COLOR_ATTACHMENT1;
+		attachments[2] = GL_COLOR_ATTACHMENT2;
+		attachments[3] = GL_COLOR_ATTACHMENT3;
+		attachments[4] = GL_COLOR_ATTACHMENT4;
+		attachments[5] = GL_COLOR_ATTACHMENT5;
 
 		if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE) {
 			// 没有正确实现，则报错
@@ -77,6 +133,7 @@ public:
 
 	void Bind() {
 		glBindFramebuffer(GL_FRAMEBUFFER, framebuffer);
+		glDrawBuffers(6, attachments);
 		glDisable(GL_DEPTH_TEST);
 	}
 
@@ -88,6 +145,16 @@ public:
 		// 作为第0个纹理
 		glActiveTexture(GL_TEXTURE0);
 		glBindTexture(GL_TEXTURE_2D, textureColorbuffer);
+		glActiveTexture(GL_TEXTURE1);
+		glBindTexture(GL_TEXTURE_2D, textureDepthbuffer);
+		glActiveTexture(GL_TEXTURE2);
+		glBindTexture(GL_TEXTURE_2D, textureNormalbuffer);
+		glActiveTexture(GL_TEXTURE3);
+		glBindTexture(GL_TEXTURE_2D, textureCountbuffer);
+		glActiveTexture(GL_TEXTURE4);
+		glBindTexture(GL_TEXTURE_2D, textureluminance1buffer);
+		glActiveTexture(GL_TEXTURE5);
+		glBindTexture(GL_TEXTURE_2D, textureluminance2buffer);
 	}
 
 	void Delete() {
@@ -95,14 +162,31 @@ public:
 		unBind();
 		glDeleteFramebuffers(1, &framebuffer);
 		glDeleteTextures(1, &textureColorbuffer);
+		glDeleteTextures(1, &textureDepthbuffer);
+		glDeleteTextures(1, &textureNormalbuffer);
+		glDeleteTextures(1, &textureCountbuffer);
+		glDeleteTextures(1, &textureluminance1buffer);
+		glDeleteTextures(1, &textureluminance2buffer);
 	}
 private:
 	// framebuffer配置
 	unsigned int framebuffer;
 	// 颜色附件纹理
 	unsigned int textureColorbuffer;
+	// 深度附件纹理
+	unsigned int textureDepthbuffer;
+	// 法线附件纹理
+	unsigned int textureNormalbuffer;
+
+	unsigned int textureCountbuffer;
+
+	unsigned int textureluminance1buffer;
+
+	unsigned int textureluminance2buffer;
 	// 深度和模板附件的renderbuffer object
 	unsigned int rbo;
+
+	unsigned int attachments[6];
 };
 
 
@@ -118,8 +202,8 @@ public:
 		int histIndex = LoopNum % 2;
 		int curIndex = (histIndex == 0 ? 1 : 0);
 		
-		fbo[curIndex].Bind();
 		fbo[histIndex].BindAsTexture();
+		fbo[curIndex].Bind();
 	}
 	void setCurrentAsTexture(int LoopNum) {
 		int histIndex = LoopNum % 2;

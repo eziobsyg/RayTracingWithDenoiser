@@ -21,8 +21,9 @@ ADD_EXECUTABLE(${CMAKE_PROJECT_NAME} ${SOURCES} ${HEADERS} ${GLSL})
 
 # Get the GLM environment variable. Since GLM is a header-only library, we
 # just need to add it to the include directory.
-# SET(GLM_INCLUDE_DIR "$ENV{GLM_INCLUDE_DIR}")
-SET(GLM_INCLUDE_DIR "D:/My Files/TAMU_study/441-graphics/libs/glm")
+SET(GLM_INCLUDE_DIR "$ENV{GLM_INCLUDE_DIR}")
+# SET(GLM_INCLUDE_DIR "D:/My Files/TAMU_study/441-graphics/libs/glm")
+find_path(GLM_INCLUDE_DIR NAMES glm/glm.hpp HINTS $ENV{GLM_INCLUDE_DIR})
 IF(NOT GLM_INCLUDE_DIR)
 	# The environment variable was not set
 	SET(ERR_MSG "Please point the environment variable GLM_INCLUDE_DIR to the root directory of your GLM installation.")
@@ -43,8 +44,8 @@ INCLUDE_DIRECTORIES(${GLM_INCLUDE_DIR})
 
 # Get the GLFW environment variable. There should be a CMakeLists.txt in the 
 # specified directory.
-# SET(GLFW_DIR "$ENV{GLFW_DIR}")
-SET(GLFW_DIR "D:/My Files/TAMU_study/441-graphics/libs/glfw-3.3.9")
+SET(GLFW_DIR "$ENV{GLFW_DIR}")
+# SET(GLFW_DIR "D:/My Files/TAMU_study/441-graphics/libs/glfw-3.3.9")
 IF(NOT GLFW_DIR)
 	# The environment variable was not set
 	SET(ERR_MSG "Please point the environment variable GLFW_DIR to the root directory of your GLFW installation.")
@@ -73,8 +74,8 @@ INCLUDE_DIRECTORIES(${GLFW_DIR}/include)
 TARGET_LINK_LIBRARIES(${CMAKE_PROJECT_NAME} glfw ${GLFW_LIBRARIES})
 
 # Get the GLEW environment variable.
-# SET(GLEW_DIR "$ENV{GLEW_DIR}")
-SET(GLEW_DIR "D:/My Files/TAMU_study/441-graphics/libs/glew-2.2.0")
+SET(GLEW_DIR "$ENV{GLEW_DIR}")
+# SET(GLEW_DIR "D:/My Files/TAMU_study/441-graphics/libs/glew-2.2.0")
 IF(NOT GLEW_DIR)
 	# The environment variable was not set
 	SET(ERR_MSG "Please point the environment variable GLEW_DIR to the root directory of your GLEW installation.")
